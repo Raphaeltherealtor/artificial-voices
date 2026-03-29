@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { DetectedObject, TranslationEntry } from "./api/identify/route";
 import SettingsPanel from "@/components/SettingsPanel";
+import RoomQuiz from "@/components/RoomQuiz";
 import { useSettings } from "@/hooks/useSettings";
 import { useProgress } from "@/hooks/useProgress";
 
@@ -143,6 +144,7 @@ export default function Home() {
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [scanActive, setScanActive] = useState(true);
+  const [quizMode, setQuizMode] = useState(false);
 
   // PWA
   const installPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
@@ -295,6 +297,12 @@ export default function Home() {
     ? { w: window.innerWidth, h: window.innerHeight }
     : { w: 390, h: 844 };
 
+  // Pre-compute screen positions for RoomQuiz chips
+  const screenPositions: Record<string, { x: number; y: number }> = {};
+  objects.forEach(obj => {
+    screenPositions[obj.label] = videoToScreen(obj.x, obj.y, videoDims.current.w, videoDims.current.h, screenSize.w, screenSize.h);
+  });
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -306,8 +314,18 @@ export default function Home() {
         <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover pointer-events-none" />
       </div>
 
-      {/* ── Floating object chips ── */}
-      {cameraState === "ready" && scanActive && objects.map((obj, i) => {
+      {/* ── Room Quiz mode ── */}
+      {cameraState === "ready" && quizMode && scanActive && (
+        <RoomQuiz
+          objects={objects}
+          selectedLang={selectedLang}
+          captureFrame={captureFrame}
+          screenPositions={screenPositions}
+        />
+      )}
+
+      {/* ── Floating object chips (hidden in quiz mode) ── */}
+      {cameraState === "ready" && scanActive && !quizMode && objects.map((obj, i) => {
         const sp = videoToScreen(obj.x, obj.y, videoDims.current.w, videoDims.current.h, screenSize.w, screenSize.h);
         const isActive = selectedObj?.label === obj.label;
         const entry = obj.translations?.[selectedLang.name] as TranslationEntry | undefined;
@@ -338,7 +356,7 @@ export default function Home() {
 
       {/* AR characters */}
       {cameraState === "ready" && settings.companionsEnabled && (
-        <ArCharacters captureFrame={captureFrame} />
+        <ArCharacters captureFrame={captureFrame} selectedLang={selectedLang} />
       )}
 
       {/* Tapping spinner */}
@@ -491,6 +509,17 @@ export default function Home() {
           >
             <span className={`w-1.5 h-1.5 rounded-full ${scanActive ? "bg-black animate-pulse" : "bg-white/40"}`} />
             {scanActive ? "Scanning" : "Paused"}
+          </button>
+
+          {/* Quiz mode toggle */}
+          <button
+            onClick={() => setQuizMode(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition active:scale-95 ${
+              quizMode ? "bg-purple-500 text-white" : "bg-white/15 text-white/60 backdrop-blur-sm"
+            }`}
+          >
+            <span>🎯</span>
+            {quizMode ? "Quiz On" : "Quiz"}
           </button>
         </div>
       )}
