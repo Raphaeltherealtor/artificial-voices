@@ -2,12 +2,25 @@
 
 import { useRef, useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import type { DetectedObject, TranslationEntry } from "./api/identify/route";
 import SettingsPanel from "@/components/SettingsPanel";
 import { useSettings } from "@/hooks/useSettings";
+import { useProgress } from "@/hooks/useProgress";
 
 // Lazy-load AR characters (they use geolocation + animation — no SSR needed)
 const ArCharacters = dynamic(() => import("@/components/ArCharacter"), { ssr: false });
+
+function LearnButton() {
+  const { totalXP } = useProgress();
+  return (
+    <Link href="/learn" className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-sm text-white text-xs font-semibold active:scale-95 transition border border-white/20">
+      <span>📚</span>
+      <span>Learn</span>
+      {totalXP > 0 && <span className="bg-yellow-400 text-black text-[10px] font-black px-1.5 py-0.5 rounded-full">{totalXP}</span>}
+    </Link>
+  );
+}
 
 const LANGUAGES = [
   { name: "Spanish",          flag: "🇪🇸" },
@@ -441,6 +454,13 @@ export default function Home() {
             </div>
             <p className="text-center text-[10px] text-white/20 mt-2">Tap to dismiss</p>
           </div>
+        </div>
+      )}
+
+      {/* ── Learn button (floating bottom-left) ── */}
+      {cameraState === "ready" && (
+        <div className="absolute bottom-6 left-4 z-20" onClick={(e) => e.stopPropagation()}>
+          <LearnButton />
         </div>
       )}
 
