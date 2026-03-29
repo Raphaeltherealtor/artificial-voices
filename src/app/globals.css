@@ -1,3 +1,55 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── Character walking animations ─────────────────────────────────────── */
+
+@keyframes char-bob {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-5px); }
+}
+
+@keyframes leg-swing-l {
+  0%, 100% { transform: rotate(-18deg); }
+  50%       { transform: rotate(18deg); }
+}
+
+@keyframes leg-swing-r {
+  0%, 100% { transform: rotate(18deg); }
+  50%       { transform: rotate(-18deg); }
+}
+
+@keyframes arm-swing-l {
+  0%, 100% { transform: rotate(15deg); }
+  50%       { transform: rotate(-15deg); }
+}
+
+@keyframes arm-swing-r {
+  0%, 100% { transform: rotate(-15deg); }
+  50%       { transform: rotate(15deg); }
+}
+
+.char-walk-0 {
+  animation: char-bob 0.4s ease-in-out infinite;
+}
+.char-walk-0 .char-leg-l { animation: leg-swing-l 0.4s ease-in-out infinite; }
+.char-walk-0 .char-leg-r { animation: leg-swing-r 0.4s ease-in-out infinite; }
+.char-walk-0 .char-arm-l { animation: arm-swing-l 0.4s ease-in-out infinite; }
+.char-walk-0 .char-arm-r { animation: arm-swing-r 0.4s ease-in-out infinite; }
+
+.char-walk-1 {
+  animation: char-bob 0.4s ease-in-out infinite reverse;
+}
+.char-walk-1 .char-leg-l { animation: leg-swing-l 0.4s ease-in-out infinite reverse; }
+.char-walk-1 .char-leg-r { animation: leg-swing-r 0.4s ease-in-out infinite reverse; }
+.char-walk-1 .char-arm-l { animation: arm-swing-l 0.4s ease-in-out infinite reverse; }
+.char-walk-1 .char-arm-r { animation: arm-swing-r 0.4s ease-in-out infinite reverse; }
+
+/* ── Scrollbar hide ───────────────────────────────────────────────────── */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
