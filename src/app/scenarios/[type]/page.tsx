@@ -215,11 +215,6 @@ export default function ScenarioPage() {
   const router = useRouter();
   const scenario = SCENARIOS[params.type as keyof typeof SCENARIOS];
 
-  // Redirect if invalid
-  useEffect(() => {
-    if (!scenario) router.replace("/scenarios");
-  }, [scenario, router]);
-
   const { settings } = useSettings();
   const { tilt, permissionState, requestPermission } = useDeviceOrientation();
 
@@ -247,15 +242,13 @@ export default function ScenarioPage() {
   const [quizStreak, setQuizStreak] = useState(0);
   const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
 
-  const screenSize = typeof window !== "undefined"
-    ? { w: window.innerWidth, h: window.innerHeight }
-    : { w: 390, h: 844 };
-
-  if (!scenario) return null;
+  // Redirect if invalid scenario type
+  useEffect(() => {
+    if (!scenario) router.replace("/scenarios");
+  }, [scenario, router]);
 
   // ── Camera ────────────────────────────────────────────────────────────────
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const startCamera = useCallback(async () => {
     setCamState("requesting");
     streamRef.current?.getTracks().forEach(t => t.stop());
@@ -273,14 +266,12 @@ export default function ScenarioPage() {
     } catch { setCamState("denied"); }
   }, []);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => { startCamera(); }, [startCamera]);
 
   // ── Translation pre-load ──────────────────────────────────────────────────
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
-    if (loadState !== "idle") return;
+    if (!scenario || loadState !== "idle") return;
     setLoadState("loading");
     fetch("/api/scenario", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -294,6 +285,10 @@ export default function ScenarioPage() {
       .then(data => { setTranslations(data.translations ?? {}); setLoadState("ready"); })
       .catch(() => setLoadState("error"));
   }, [loadState, selectedLang, scenario]);
+
+  // ── Early return after all hooks ──────────────────────────────────────────
+
+  if (!scenario) return null;
 
   function handleLangChange(lang: typeof LANGUAGES[0]) {
     setSelectedLang(lang);
