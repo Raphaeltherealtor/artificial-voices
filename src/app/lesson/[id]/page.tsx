@@ -47,18 +47,19 @@ function SpeakBtn({ text, langName, size = "sm" }: { text: string; langName: str
 }
 
 function VocabCard({ item, flipped, onFlip, langName }: { item: NonNullable<Extract<LessonData, {type:"vocab"}>["items"]>[0]; flipped: boolean; onFlip: () => void; langName: string }) {
-  const handleFlip = () => {
-    if (!flipped) speakText(item.word, langName).catch(() => {});
-    onFlip();
-  };
+  // Auto-speak the word as soon as the card appears
+  useEffect(() => {
+    speakText(item.word, langName).catch(() => {});
+  }, [item.word, langName]);
+
   return (
-    <button onClick={handleFlip} className="w-full min-h-[280px] bg-white/5 border border-white/10 rounded-3xl p-6 flex flex-col items-center justify-center gap-4 active:scale-98 transition text-center">
+    <button onClick={onFlip} className="w-full min-h-[280px] bg-white/5 border border-white/10 rounded-3xl p-6 flex flex-col items-center justify-center gap-4 active:scale-98 transition text-center">
       {!flipped ? (
         <>
           <p className="text-5xl font-black text-white">{item.word}</p>
           {item.romanized && <p className="text-lg text-white/50 italic">{item.romanized}</p>}
           {item.gender && <span className="text-xs bg-white/10 text-white/50 px-3 py-1 rounded-full">{item.gender}</span>}
-          <p className="text-white/30 text-sm mt-2">Tap to hear & reveal →</p>
+          <p className="text-white/30 text-sm mt-2">Tap to reveal →</p>
         </>
       ) : (
         <>
@@ -83,6 +84,14 @@ function GrammarCard({ data, langName }: { data: Extract<LessonData, {type:"gram
   const [cardIdx, setCardIdx] = useState(0);
   const total = 1 + data.grammar.examples.length;
   const isLast = cardIdx >= total - 1;
+
+  // Auto-speak example sentence when it appears
+  useEffect(() => {
+    if (cardIdx > 0) {
+      const target = data.grammar.examples[cardIdx - 1]?.target;
+      if (target) speakText(target, langName).catch(() => {});
+    }
+  }, [cardIdx]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-4">
@@ -128,6 +137,12 @@ function GrammarCard({ data, langName }: { data: Extract<LessonData, {type:"gram
 
 function ConjugationCard({ data, langName }: { data: Extract<LessonData, {type:"conjugation"}>; langName: string }) {
   const c = data.conjugation;
+
+  // Auto-speak the verb when the card first appears
+  useEffect(() => {
+    speakText(c.verb, langName).catch(() => {});
+  }, [c.verb, langName]);
+
   return (
     <div className="space-y-4">
       <div className="bg-white/5 border border-white/10 rounded-3xl p-5">
