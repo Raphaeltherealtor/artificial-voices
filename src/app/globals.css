@@ -45,6 +45,13 @@
 .char-walk-1 .char-arm-l { animation: arm-swing-l 0.4s ease-in-out infinite reverse; }
 .char-walk-1 .char-arm-r { animation: arm-swing-r 0.4s ease-in-out infinite reverse; }
 
+/* ── Circle gesture flash ─────────────────────────────────────────────── */
+@keyframes av-circle-flash {
+  0%   { opacity: 1; transform: scale(1); }
+  60%  { opacity: 0.6; transform: scale(1.15); }
+  100% { opacity: 0; transform: scale(1.3); }
+}
+
 /* ── Scrollbar hide ───────────────────────────────────────────────────── */
 .scrollbar-hide {
   -ms-overflow-style: none;

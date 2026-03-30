@@ -128,10 +128,13 @@ function TranslationDisplay({
 export default function Home() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const gestureCanvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isScanningRef = useRef(false);
   const videoDims = useRef({ w: 1280, h: 720 });
+  const gesturePoints = useRef<{ x: number; y: number }[]>([]);
+  const lastWasTouch = useRef(false);
 
   const { settings, update: updateSettings } = useSettings();
 
@@ -145,6 +148,7 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [scanActive, setScanActive] = useState(true);
   const [quizMode, setQuizMode] = useState(false);
+  const [circleFlash, setCircleFlash] = useState<{ x: number; y: number; r: number } | null>(null);
 
   // PWA
   const installPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
@@ -170,6 +174,55 @@ export default function Home() {
       setShowInstallBanner(true);
     }
   }, []);
+
+  // ── Camera stream cleanup on unmount (releases camera for other pages) ──────
+  useEffect(() => {
+    return () => { streamRef.current?.getTracks().forEach(t => t.stop()); };
+  }, []);
+
+  // ── Circle gesture detection ──────────────────────────────────────────────
+
+  function detectCircle(pts: { x: number; y: number }[]) {
+    if (pts.length < 18) return null;
+    const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+    const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+    const radii = pts.map(p => Math.sqrt((p.x - cx) ** 2 + (p.y - cy) ** 2));
+    const avgR = radii.reduce((s, r) => s + r, 0) / radii.length;
+    if (avgR < 25) return null;
+    const variance = radii.reduce((s, r) => s + (r - avgR) ** 2, 0) / radii.length;
+    const circularity = Math.sqrt(variance) / avgR;
+    const startEnd = Math.sqrt((pts[0].x - pts[pts.length - 1].x) ** 2 + (pts[0].y - pts[pts.length - 1].y) ** 2);
+    if (circularity < 0.45 && startEnd < avgR * 1.5) return { x: cx, y: cy, r: avgR };
+    return null;
+  }
+
+  function drawGesture(pts: { x: number; y: number }[]) {
+    const canvas = gestureCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (pts.length < 2) return;
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(147,197,253,0.75)";
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = "rgba(99,179,237,0.9)";
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.stroke();
+  }
+
+  function clearGesture() {
+    const canvas = gestureCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    ctx?.clearRect(0, 0, canvas.width, canvas.height);
+  }
 
   // ── Camera ──────────────────────────────────────────────────────────────────
 
@@ -256,11 +309,11 @@ export default function Home() {
 
   // ── Tap to identify ────────────────────────────────────────────────────────
 
-  const handleCameraTap = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
+  const identifyAtScreenPos = useCallback(async (clientX: number, clientY: number, el: Element) => {
     if (cameraState !== "ready" || tapping) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const sx = ((e.clientX - rect.left) / rect.width) * 100;
-    const sy = ((e.clientY - rect.top) / rect.height) * 100;
+    const rect = el.getBoundingClientRect();
+    const sx = ((clientX - rect.left) / rect.width) * 100;
+    const sy = ((clientY - rect.top) / rect.height) * 100;
     const { x: vx, y: vy } = screenToVideo(sx, sy, videoDims.current.w, videoDims.current.h, rect.width, rect.height);
     const base64 = captureFrame();
     if (!base64) return;
@@ -276,6 +329,41 @@ export default function Home() {
     } catch { /* silent */ }
     finally { setTapping(false); }
   }, [cameraState, tapping, captureFrame]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleCameraClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (lastWasTouch.current) { lastWasTouch.current = false; return; } // skip if touch fired it
+    identifyAtScreenPos(e.clientX, e.clientY, e.currentTarget);
+  }, [identifyAtScreenPos]);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    lastWasTouch.current = true;
+    const t = e.touches[0];
+    gesturePoints.current = [{ x: t.clientX, y: t.clientY }];
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    gesturePoints.current.push({ x: t.clientX, y: t.clientY });
+    drawGesture(gesturePoints.current);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    clearGesture();
+    const pts = gesturePoints.current;
+    const circle = detectCircle(pts);
+    if (circle) {
+      // Circle gesture — identify what's in the center
+      setCircleFlash(circle);
+      setTimeout(() => setCircleFlash(null), 700);
+      identifyAtScreenPos(circle.x, circle.y, e.currentTarget);
+    } else if (pts.length <= 5) {
+      // Very short path = tap
+      const last = pts[pts.length - 1] ?? { x: 0, y: 0 };
+      identifyAtScreenPos(last.x, last.y, e.currentTarget);
+    }
+    gesturePoints.current = [];
+  }, [identifyAtScreenPos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const showBanner = useCallback((obj: DetectedObject) => {
     setSelectedObj(obj);
@@ -316,10 +404,34 @@ export default function Home() {
     <main className="relative min-h-screen bg-black overflow-hidden select-none">
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Camera tap layer */}
-      <div className="absolute inset-0 z-0 cursor-crosshair" onClick={handleCameraTap}>
+      {/* Camera + gesture layer */}
+      <div
+        className="absolute inset-0 z-0 cursor-crosshair"
+        onClick={handleCameraClick}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{ touchAction: "none" }}
+      >
         <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover pointer-events-none" />
+        {/* Gesture drawing canvas */}
+        <canvas ref={gestureCanvasRef} className="absolute inset-0 pointer-events-none" style={{ width: "100%", height: "100%" }} />
       </div>
+
+      {/* Circle flash animation */}
+      {circleFlash && (
+        <div
+          className="absolute pointer-events-none z-10 rounded-full border-2 border-blue-300/80"
+          style={{
+            left: circleFlash.x - circleFlash.r,
+            top: circleFlash.y - circleFlash.r,
+            width: circleFlash.r * 2,
+            height: circleFlash.r * 2,
+            boxShadow: "0 0 24px rgba(147,197,253,0.8)",
+            animation: "av-circle-flash 0.7s ease-out forwards",
+          }}
+        />
+      )}
 
       {/* ── Room Quiz mode ── */}
       {cameraState === "ready" && quizMode && scanActive && (
@@ -331,32 +443,23 @@ export default function Home() {
         />
       )}
 
-      {/* ── Floating object chips (hidden in quiz mode) ── */}
+      {/* ── Glowing dots (hidden in quiz mode) ── */}
       {cameraState === "ready" && scanActive && !quizMode && objects.map((obj, i) => {
         const sp = videoToScreen(obj.x, obj.y, videoDims.current.w, videoDims.current.h, screenSize.w, screenSize.h);
         const isActive = selectedObj?.label === obj.label;
-        const entry = obj.translations?.[selectedLang.name] as TranslationEntry | undefined;
         return (
           <button
             key={`${obj.label}-${i}`}
             onClick={(e) => handleChipTap(e, obj)}
             style={{ left: `${sp.x}%`, top: `${sp.y}%`, transform: "translate(-50%, -50%)" }}
-            className={`absolute z-10 flex flex-col items-center gap-0.5 active:scale-95 transition-all ${
-              isActive ? "scale-105" : ""
-            }`}
+            className={`absolute z-10 flex items-center justify-center active:scale-90 transition-all ${isActive ? "scale-110" : ""}`}
           >
-            <span className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shadow-lg backdrop-blur-md border transition ${
-              isActive
-                ? "bg-white text-black border-white/80"
-                : "bg-black/60 text-white border-white/25"
-            }`}>
-              {entry?.native ?? obj.label}
-            </span>
-            {entry && !LATIN_LANGS.has(selectedLang.name) && entry.roman && settings.showRomanized && (
-              <span className="text-[9px] text-white/60 italic bg-black/40 px-1.5 py-0.5 rounded-full">
-                {entry.roman}
-              </span>
-            )}
+            {/* Outer ping ring */}
+            <span className={`absolute w-5 h-5 rounded-full animate-ping ${isActive ? "bg-white/50" : "bg-blue-300/40"}`} />
+            {/* Solid dot */}
+            <span className={`relative w-3.5 h-3.5 rounded-full shadow-lg ${
+              isActive ? "bg-white ring-2 ring-white/60" : "bg-blue-300/90 ring-1 ring-white/30"
+            }`} />
           </button>
         );
       })}
@@ -426,7 +529,7 @@ export default function Home() {
         <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 px-8 text-center bg-black">
           <span className="text-6xl">📷</span>
           <p className="text-white/60 text-sm leading-relaxed max-w-xs">
-            Objects get labeled live. Tap any label or tap the scene to identify anything in {selectedLang.name}.
+            Point at anything and <strong className="text-white">draw a circle</strong> around it to identify it in {selectedLang.name}. Glowing dots mark detected objects — tap to reveal.
           </p>
           <button onClick={() => startCamera(facingMode)} className="px-8 py-4 rounded-full bg-white text-black font-bold text-base active:scale-95 transition shadow-lg">
             Start Camera
