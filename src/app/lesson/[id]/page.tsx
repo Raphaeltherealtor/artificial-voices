@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { UNITS, LANG_DEFS, type LessonData, type QuizQuestion } from "@/data/curriculum";
 import LessonScene from "@/components/LessonScene";
 import { useProgress } from "@/hooks/useProgress";
+import { speakText, isSynthesisSupported } from "@/utils/speech";
 
 type Phase = "loading" | "content" | "quiz" | "results";
 
@@ -27,22 +28,50 @@ function ProgressBar({ current, total }: { current: number; total: number }) {
 
 // ── Content Cards ─────────────────────────────────────────────────────────────
 
-function VocabCard({ item, flipped, onFlip }: { item: NonNullable<Extract<LessonData, {type:"vocab"}>["items"]>[0]; flipped: boolean; onFlip: () => void }) {
+function SpeakBtn({ text, langName, size = "sm" }: { text: string; langName: string; size?: "sm" | "lg" }) {
+  const [speaking, setSpeaking] = useState(false);
+  if (!isSynthesisSupported()) return null;
+  const handle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSpeaking(true);
+    speakText(text, langName).finally(() => setSpeaking(false));
+  };
   return (
-    <button onClick={onFlip} className="w-full min-h-[280px] bg-white/5 border border-white/10 rounded-3xl p-6 flex flex-col items-center justify-center gap-4 active:scale-98 transition text-center">
+    <button
+      onClick={handle}
+      className={`flex items-center justify-center rounded-full bg-white/10 active:bg-white/20 transition shrink-0 ${size === "lg" ? "w-12 h-12" : "w-8 h-8"}`}
+    >
+      <span className={speaking ? "animate-pulse" : ""}>{size === "lg" ? "🔊" : "🔈"}</span>
+    </button>
+  );
+}
+
+function VocabCard({ item, flipped, onFlip, langName }: { item: NonNullable<Extract<LessonData, {type:"vocab"}>["items"]>[0]; flipped: boolean; onFlip: () => void; langName: string }) {
+  const handleFlip = () => {
+    if (!flipped) speakText(item.word, langName).catch(() => {});
+    onFlip();
+  };
+  return (
+    <button onClick={handleFlip} className="w-full min-h-[280px] bg-white/5 border border-white/10 rounded-3xl p-6 flex flex-col items-center justify-center gap-4 active:scale-98 transition text-center">
       {!flipped ? (
         <>
           <p className="text-5xl font-black text-white">{item.word}</p>
           {item.romanized && <p className="text-lg text-white/50 italic">{item.romanized}</p>}
           {item.gender && <span className="text-xs bg-white/10 text-white/50 px-3 py-1 rounded-full">{item.gender}</span>}
-          <p className="text-white/30 text-sm mt-2">Tap to reveal →</p>
+          <p className="text-white/30 text-sm mt-2">Tap to hear & reveal →</p>
         </>
       ) : (
         <>
-          <p className="text-2xl font-bold text-white">{item.english}</p>
-          <div className="w-full bg-white/10 rounded-2xl p-4 text-left">
-            <p className="text-white/70 text-sm">{item.example}</p>
-            <p className="text-white/40 text-xs mt-1 italic">{item.exampleEn}</p>
+          <div className="flex items-center gap-3">
+            <p className="text-2xl font-bold text-white">{item.english}</p>
+            <SpeakBtn text={item.word} langName={langName} size="lg" />
+          </div>
+          <div className="w-full bg-white/10 rounded-2xl p-4 text-left space-y-2">
+            <div className="flex items-start gap-2">
+              <p className="text-white/70 text-sm flex-1">{item.example}</p>
+              <SpeakBtn text={item.example} langName={langName} />
+            </div>
+            <p className="text-white/40 text-xs italic">{item.exampleEn}</p>
           </div>
         </>
       )}
@@ -50,7 +79,7 @@ function VocabCard({ item, flipped, onFlip }: { item: NonNullable<Extract<Lesson
   );
 }
 
-function GrammarCard({ data }: { data: Extract<LessonData, {type:"grammar"}> }) {
+function GrammarCard({ data, langName }: { data: Extract<LessonData, {type:"grammar"}>; langName: string }) {
   const [cardIdx, setCardIdx] = useState(0);
   const total = 1 + data.grammar.examples.length;
   const isLast = cardIdx >= total - 1;
@@ -74,7 +103,12 @@ function GrammarCard({ data }: { data: Extract<LessonData, {type:"grammar"}> }) 
       ) : (
         <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-3">
           <p className="text-white/40 text-xs uppercase tracking-widest">Example {cardIdx}</p>
-          <p className="text-white text-xl font-semibold">{data.grammar.examples[cardIdx - 1]?.target}</p>
+          <div className="flex items-start gap-2">
+            <p className="text-white text-xl font-semibold flex-1">{data.grammar.examples[cardIdx - 1]?.target}</p>
+            {data.grammar.examples[cardIdx - 1]?.target && (
+              <SpeakBtn text={data.grammar.examples[cardIdx - 1]!.target} langName={langName} size="lg" />
+            )}
+          </div>
           <p className="text-white/50 text-sm">{data.grammar.examples[cardIdx - 1]?.english}</p>
           <span className="inline-block bg-white/15 text-white/70 text-xs px-3 py-1 rounded-full">
             Key: {data.grammar.examples[cardIdx - 1]?.highlight}
@@ -92,13 +126,16 @@ function GrammarCard({ data }: { data: Extract<LessonData, {type:"grammar"}> }) 
   );
 }
 
-function ConjugationCard({ data }: { data: Extract<LessonData, {type:"conjugation"}> }) {
+function ConjugationCard({ data, langName }: { data: Extract<LessonData, {type:"conjugation"}>; langName: string }) {
   const c = data.conjugation;
   return (
     <div className="space-y-4">
       <div className="bg-white/5 border border-white/10 rounded-3xl p-5">
         <p className="text-white/40 text-xs uppercase tracking-widest mb-3">Verb</p>
-        <p className="text-white text-3xl font-black">{c.verb}</p>
+        <div className="flex items-center gap-3">
+          <p className="text-white text-3xl font-black">{c.verb}</p>
+          <SpeakBtn text={c.verb} langName={langName} size="lg" />
+        </div>
         <p className="text-white/50 text-base">"{c.verbEnglish}" — {c.tense}</p>
       </div>
       <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
@@ -108,7 +145,8 @@ function ConjugationCard({ data }: { data: Extract<LessonData, {type:"conjugatio
               <p className="text-white/60 text-sm">{row.pronoun}</p>
               <p className="text-white/30 text-xs">{row.pronounEn}</p>
             </div>
-            <p className="text-white font-bold text-base">{row.form}</p>
+            <p className="text-white font-bold text-base flex-1">{row.form}</p>
+            <SpeakBtn text={`${row.pronoun} ${row.form}`} langName={langName} />
           </div>
         ))}
       </div>
@@ -116,7 +154,10 @@ function ConjugationCard({ data }: { data: Extract<LessonData, {type:"conjugatio
       <div className="space-y-2">
         {c.examples.map((ex, i) => (
           <div key={i} className="bg-white/5 rounded-2xl px-4 py-3">
-            <p className="text-white text-sm">{ex.target}</p>
+            <div className="flex items-start gap-2">
+              <p className="text-white text-sm flex-1">{ex.target}</p>
+              <SpeakBtn text={ex.target} langName={langName} />
+            </div>
             <p className="text-white/40 text-xs">{ex.english}</p>
           </div>
         ))}
@@ -314,7 +355,7 @@ export default function LessonPage() {
               <div className="space-y-4">
                 <ProgressBar current={cardIdx + 1} total={data.items.length} />
                 <p className="text-white/40 text-xs text-center">{cardIdx + 1} / {data.items.length}</p>
-                <VocabCard item={data.items[cardIdx]} flipped={flipped} onFlip={() => setFlipped(f => !f)} />
+                <VocabCard item={data.items[cardIdx]} flipped={flipped} onFlip={() => setFlipped(f => !f)} langName={langDef.name} />
                 <div className="flex gap-3">
                   <button
                     disabled={cardIdx === 0}
@@ -344,7 +385,7 @@ export default function LessonPage() {
 
             {data.type === "grammar" && (
               <>
-                <GrammarCard data={data} />
+                <GrammarCard data={data} langName={langDef.name} />
                 {data.cultureTip && (
                   <div className="bg-white/5 rounded-2xl px-4 py-3 flex gap-2">
                     <span>💡</span>
@@ -360,7 +401,7 @@ export default function LessonPage() {
 
             {data.type === "conjugation" && (
               <>
-                <ConjugationCard data={data} />
+                <ConjugationCard data={data} langName={langDef.name} />
                 <button onClick={() => setPhase("quiz")}
                   className="w-full py-4 rounded-2xl bg-green-500 text-white font-bold text-sm active:scale-95 transition">
                   Take Quiz →
