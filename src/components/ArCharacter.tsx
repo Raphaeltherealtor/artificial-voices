@@ -5,13 +5,13 @@ import { speakText, stopSpeech, startListening, isSpeechSupported, isSynthesisSu
 
 // ── Character designs ────────────────────────────────────────────────────────
 
-const CHAR_DEFS = [
+export const CHAR_DEFS = [
   { id: "hiro",  name: "Hiro",  skin: "#F5C5A3", shirt: "#3B82F6", hair: "#1C1C1C", pants: "#1E3A5F" },
   { id: "luna",  name: "Luna",  skin: "#C68642", shirt: "#8B5CF6", hair: "#2C1810", pants: "#3B1F6E" },
   { id: "marco", name: "Marco", skin: "#FDDBB4", shirt: "#10B981", hair: "#8B4513", pants: "#065F46" },
 ];
 
-function CharacterSvg({ def, facingRight, talking }: {
+export function CharacterSvg({ def, facingRight, talking }: {
   def: typeof CHAR_DEFS[0]; facingRight: boolean; talking: boolean;
 }) {
   return (

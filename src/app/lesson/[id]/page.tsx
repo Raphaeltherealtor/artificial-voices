@@ -2,6 +2,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { UNITS, LANG_DEFS, type LessonData, type QuizQuestion } from "@/data/curriculum";
+import LessonScene from "@/components/LessonScene";
 import { useProgress } from "@/hooks/useProgress";
 
 type Phase = "loading" | "content" | "quiz" | "results";
@@ -306,6 +307,9 @@ export default function LessonPage() {
         {/* Content phase */}
         {phase === "content" && data && (
           <>
+            {/* Animated scene illustration */}
+            <LessonScene topicId={topicId} />
+
             {data.type === "vocab" && (
               <div className="space-y-4">
                 <ProgressBar current={cardIdx + 1} total={data.items.length} />
