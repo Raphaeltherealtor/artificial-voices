@@ -471,6 +471,7 @@ export default function ScenarioPage() {
         y={scenario.npcY}
         bubble={npcBubble?.reply}
         bubbleEn={npcBubble?.replyEnglish}
+        langName={selectedLang.name}
         quizMode={quizActive}
         onTap={handleNpcTap}
       />

@@ -421,12 +421,12 @@ export default function StoryChapterPage() {
     loadStep();
   }, [step, selectedLang.name, series, chapter]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-speak NPC line when it arrives (scene steps)
+  // Auto-speak NPC line when it arrives for all step types
   useEffect(() => {
-    if (npcLine?.line && step?.type === "scene" && synthSupported && phase === "ready") {
+    if (npcLine?.line && synthSupported && phase === "ready" && step?.type !== "ar-circle") {
       speakText(npcLine.line, selectedLang.name).catch(() => {});
     }
-  }, [npcLine, step?.type, selectedLang.name, synthSupported, phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [npcLine, selectedLang.name, synthSupported, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const goNext = useCallback(() => {
     if (!chapter) return;
@@ -491,12 +491,13 @@ export default function StoryChapterPage() {
 
   const handleChoiceTap = useCallback((idx: number, choices: TranslatedChoice[]) => {
     if (selectedChoice !== null) return;
+    if (synthSupported && choices[idx].text) speakText(choices[idx].text, selectedLang.name).catch(() => {});
     setSelectedChoice(idx);
     setIsCorrect(choices[idx].correct);
     setTimeout(() => {
       if (choices[idx].correct) goNext();
     }, 800);
-  }, [selectedChoice, goNext]);
+  }, [selectedChoice, goNext, synthSupported, selectedLang.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!series || !chapter || !step) {
     return (

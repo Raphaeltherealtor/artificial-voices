@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { CharacterSvg, CHAR_DEFS } from "@/components/ArCharacter";
+import { speakText, isSynthesisSupported } from "@/utils/speech";
 
 interface ScenarioNpcProps {
   charDefIdx: number;
@@ -10,13 +11,14 @@ interface ScenarioNpcProps {
   y: number;      // % top
   bubble?: string;
   bubbleEn?: string;
+  langName?: string;
   quizMode?: boolean;
   onTap: () => void;
 }
 
 export default function ScenarioNpc({
   charDefIdx, npcName, npcRole, x, y,
-  bubble, bubbleEn, quizMode, onTap,
+  bubble, bubbleEn, langName, quizMode, onTap,
 }: ScenarioNpcProps) {
   const def = CHAR_DEFS[charDefIdx % CHAR_DEFS.length];
   const [showEn, setShowEn] = useState(false);
@@ -26,10 +28,11 @@ export default function ScenarioNpc({
     if (bubble) {
       setVisible(true);
       setShowEn(false);
+      if (isSynthesisSupported() && langName) speakText(bubble, langName).catch(() => {});
       const t = setTimeout(() => setVisible(false), 6000);
       return () => clearTimeout(t);
     }
-  }, [bubble]);
+  }, [bubble]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div

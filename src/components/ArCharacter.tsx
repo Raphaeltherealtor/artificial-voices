@@ -135,6 +135,7 @@ function CompanionChat({
     const englishGreeting = `Hey! I'm ${character.name}. How can I help?`;
 
     setMessages([{ role: "assistant", text: greeting, textEnglish: englishGreeting }]);
+    if (synthSupported) speakText(greeting, selectedLang.name).catch(() => {});
     setTimeout(() => inputRef.current?.focus(), 300);
   }, [character.name, selectedLang.name]);
 

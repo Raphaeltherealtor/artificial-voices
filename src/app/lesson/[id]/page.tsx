@@ -183,12 +183,13 @@ function ConjugationCard({ data, langName }: { data: Extract<LessonData, {type:"
 
 // ── Quiz ──────────────────────────────────────────────────────────────────────
 
-function QuizCard({ q, onAnswer }: { q: QuizQuestion; onAnswer: (correct: boolean) => void }) {
+function QuizCard({ q, onAnswer, langName }: { q: QuizQuestion; onAnswer: (correct: boolean) => void; langName: string }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [feedback, setFeedback] = useState(false);
 
   const pick = (opt: string) => {
     if (feedback) return;
+    if (isSynthesisSupported()) speakText(opt, langName).catch(() => {});
     setSelected(opt);
     setFeedback(true);
     setTimeout(() => onAnswer(opt === q.answer), 1000);
@@ -219,16 +220,17 @@ function QuizCard({ q, onAnswer }: { q: QuizQuestion; onAnswer: (correct: boolea
   }
 
   // fill
-  return <FillCard q={q} onAnswer={onAnswer} />;
+  return <FillCard q={q} onAnswer={onAnswer} langName={langName} />;
 }
 
-function FillCard({ q, onAnswer }: { q: QuizQuestion; onAnswer: (correct: boolean) => void }) {
+function FillCard({ q, onAnswer, langName }: { q: QuizQuestion; onAnswer: (correct: boolean) => void; langName: string }) {
   const [val, setVal] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const correct = val.trim().toLowerCase() === q.answer.toLowerCase();
 
   const submit = () => {
     if (submitted || !val.trim()) return;
+    if (isSynthesisSupported()) speakText(val.trim(), langName).catch(() => {});
     setSubmitted(true);
     setTimeout(() => onAnswer(correct), 1000);
   };
@@ -434,7 +436,7 @@ export default function LessonPage() {
               <p className="text-white/40 text-xs">{qIdx + 1} / {data.quiz.length}</p>
             </div>
             <ProgressBar current={qIdx + 1} total={data.quiz.length} />
-            <QuizCard key={qIdx} q={data.quiz[qIdx]} onAnswer={handleAnswer} />
+            <QuizCard key={qIdx} q={data.quiz[qIdx]} onAnswer={handleAnswer} langName={langDef.name} />
           </div>
         )}
 

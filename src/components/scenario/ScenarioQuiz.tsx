@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import type { ScenarioQuizQuestion } from "@/app/api/scenario/route";
-import { startListening, isSpeechSupported } from "@/utils/speech";
+import { startListening, isSpeechSupported, speakText, isSynthesisSupported } from "@/utils/speech";
 import type { RecognitionHandle } from "@/utils/speech";
 
 type InputMode = "choice" | "type" | "voice";
@@ -30,10 +30,13 @@ export default function ScenarioQuiz({
   const recRef = useRef<RecognitionHandle | null>(null);
 
   useEffect(() => {
-    // Reset on new question
+    // Reset on new question and speak NPC line
     setTyped(""); setSubmitted(false); setCorrect(null);
     setFeedback(""); setSelectedChoice(null); setInterim("");
-  }, [question]);
+    if (isSynthesisSupported() && question.npcLine) {
+      speakText(question.npcLine, langName).catch(() => {});
+    }
+  }, [question]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function submit(userAnswer: string) {
     if (submitted) return;
@@ -59,6 +62,7 @@ export default function ScenarioQuiz({
 
   function submitChoice(opt: string) {
     setSelectedChoice(opt);
+    if (isSynthesisSupported()) speakText(opt, langName).catch(() => {});
     submit(opt);
   }
 
