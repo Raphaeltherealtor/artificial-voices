@@ -260,7 +260,14 @@ export default function ScenarioPage() {
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await new Promise<void>(res => { videoRef.current!.onloadedmetadata = () => res(); });
+        await new Promise<void>((res) => {
+          const v = videoRef.current!;
+          const finish = () => res();
+          if (v.readyState >= 1) { finish(); return; }
+          v.addEventListener("loadedmetadata", finish, { once: true });
+          setTimeout(finish, 4000);
+        });
+        videoRef.current.play().catch(() => {});
       }
       setCamState("ready");
     } catch { setCamState("denied"); }

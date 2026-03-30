@@ -185,11 +185,18 @@ export default function Home() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await new Promise<void>((res) => {
-          videoRef.current!.onloadedmetadata = () => {
-            videoDims.current = { w: videoRef.current!.videoWidth || 1280, h: videoRef.current!.videoHeight || 720 };
+          const v = videoRef.current!;
+          const finish = () => {
+            videoDims.current = { w: v.videoWidth || 1280, h: v.videoHeight || 720 };
             res();
           };
+          // Metadata may have already loaded before we subscribed
+          if (v.readyState >= 1) { finish(); return; }
+          v.addEventListener("loadedmetadata", finish, { once: true });
+          // Fallback: don't hang forever on slow devices
+          setTimeout(finish, 4000);
         });
+        videoRef.current.play().catch(() => {});
       }
       setCameraState("ready");
     } catch (err) {
